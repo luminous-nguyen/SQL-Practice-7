@@ -40,6 +40,7 @@ FROM(
       FROM transactions
      ) CTE 
 WHERE rank_transaction = 3
+       
 -- Ex 4
 SELECT transaction_date,
        user_id,
@@ -55,6 +56,7 @@ FROM (
       ) CTE 
 WHERE transaction_rank =1
 GROUP BY transaction_date, user_id
+       
 -- Ex 5
 SELECT user_id,
        tweet_date,
@@ -62,6 +64,59 @@ SELECT user_id,
              OVER(PARTITION BY user_id ORDER BY tweet_date 
                   ROWS BETWEEN 2 PRECEDING AND CURRENT ROW),2) as rolling_avg_3d
 FROM tweets
+       
+-- Ex 6
+WITH cte AS
+         (
+          SELECT transaction_id
+                 merchant_id, 
+                 credit_card_id, 
+                 amount, 
+                 transaction_timestamp as current_transaction,
+                 LAG(transaction_timestamp) 
+                 OVER(PARTITION BY merchant_id, credit_card_id, amount ORDER BY transaction_timestamp) AS previous_transaction
+          FROM transactions
+        )
+        
+SELECT COUNT(merchant_id) as payment_count
+FROM cte
+WHERE current_transaction-previous_transaction <= INTERVAL '10 minutes'
+       
+-- Ex 7
+SELECT category,	
+       product,
+       total_spend
+FROM(
+      
+      SELECT category,	
+             product,
+             SUM(spend) as total_spend,
+             RANK()
+             OVER(PARTITION BY category ORDER BY SUM(spend) DESC) as rank_cat
+      FROM product_spend
+      WHERE EXTRACT(YEAR FROM transaction_date) = 2022
+      GROUP BY category, product
+    ) cte
+WHERE rank_cat IN (1,2)
+       
+-- Ex 8
+WITH cte AS (
+             SELECT 
+                   artists.artist_name,
+                   DENSE_RANK() 
+                   OVER (ORDER BY COUNT(songs.song_id) DESC) AS artist_rank
+             FROM artists
+               INNER JOIN songs
+               ON artists.artist_id = songs.artist_id
+               INNER JOIN global_song_rank AS ranking
+               ON songs.song_id = ranking.song_id
+             WHERE ranking.rank <= 10
+             GROUP BY artists.artist_name
+           )
+
+SELECT artist_name, artist_rank
+FROM cte
+WHERE artist_rank <= 5;
 
 
 
